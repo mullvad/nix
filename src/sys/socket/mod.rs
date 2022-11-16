@@ -2462,4 +2462,16 @@ mod tests {
     fn can_use_cmsg_space() {
         let _ = cmsg_space!(u8);
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn can_open_routing_socket() {
+        let _ = super::socket(
+            super::AddressFamily::Route,
+            super::SockType::Raw,
+            super::SockFlag::empty(),
+            None,
+        )
+        .expect("Failed to open routing socket");
+    }
 }

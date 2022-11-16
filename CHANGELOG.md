@@ -6,6 +6,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased] - ReleaseDate
 ### Added
 
+- Add `PF_ROUTE` to `SockType` on macOS.
+  ([#1867](https://github.com/nix-rust/nix/pull/1867))
 - Add `MntFlags` and `unmount` on all of the BSDs.
   ([#1849](https://github.com/nix-rust/nix/pull/1849))
 - Added a 'Statfs::flags' method.

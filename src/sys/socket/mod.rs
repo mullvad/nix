@@ -2463,7 +2463,7 @@ mod tests {
         let _ = cmsg_space!(u8);
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(not(target_os = "redox"))]
     #[test]
     fn can_open_routing_socket() {
         let _ = super::socket(

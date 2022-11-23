@@ -82,7 +82,7 @@ pub enum AddressFamily {
     #[cfg_attr(docsrs, doc(cfg(all())))]
     Netlink = libc::AF_NETLINK,
     /// Kernel interface for interacting with the routing table
-    #[cfg(target_os = "macos")]
+    #[cfg(not(target_os = "redox"))]
     Route = libc::PF_ROUTE,
     /// Low level packet interface (see [`packet(7)`](https://man7.org/linux/man-pages/man7/packet.7.html))
     #[cfg(any(
@@ -425,7 +425,7 @@ impl AddressFamily {
             libc::AF_NETLINK => Some(AddressFamily::Netlink),
             #[cfg(any(target_os = "macos", target_os = "macos"))]
             libc::AF_SYSTEM => Some(AddressFamily::System),
-            #[cfg(target_os = "macos")]
+            #[cfg(not(target_os = "redox"))]
             libc::PF_ROUTE => Some(AddressFamily::Route),
             #[cfg(any(target_os = "android", target_os = "linux"))]
             libc::AF_PACKET => Some(AddressFamily::Packet),

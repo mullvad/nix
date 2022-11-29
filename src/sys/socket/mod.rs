@@ -56,7 +56,7 @@ pub use self::addr::{
 ))]
 #[cfg(feature = "net")]
 pub use self::addr::{
-    InetAddr, IpAddr, Ipv4Addr, Ipv6Addr, SockaddrIn, SockaddrIn6,
+    InetAddr, IpAddr, Ipv4Addr, Ipv6Addr, SockaddrDl, SockaddrIn, SockaddrIn6,
 };
 
 #[cfg(any(target_os = "android", target_os = "linux"))]

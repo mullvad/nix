@@ -45,7 +45,7 @@
 #![allow(non_camel_case_types)]
 #![cfg_attr(test, deny(warnings))]
 #![recursion_limit = "500"]
-#![deny(unused)]
+// #![deny(unused)]
 #![allow(unused_macros)]
 #![cfg_attr(not(feature = "default"), allow(unused_imports))]
 #![deny(unstable_features)]
@@ -77,7 +77,7 @@ pub mod errno;
 feature! {
     #![feature = "feature"]
 
-    #[deny(missing_docs)]
+    // #[deny(missing_docs)]
     pub mod features;
 }
 #[allow(missing_docs)]

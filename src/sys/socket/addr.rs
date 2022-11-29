@@ -32,6 +32,7 @@ use memoffset::offset_of;
 use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::hash::{Hash, Hasher};
+use std::num::NonZeroU32;
 use std::os::unix::ffi::OsStrExt;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::os::unix::io::RawFd;
@@ -82,7 +83,11 @@ pub enum AddressFamily {
     #[cfg_attr(docsrs, doc(cfg(all())))]
     Netlink = libc::AF_NETLINK,
     /// Kernel interface for interacting with the routing table
-    #[cfg(not(target_os = "redox"))]
+    #[cfg(not(any(
+        target_os = "redox",
+        target_os = "linux",
+        target_os = "android"
+    )))]
     Route = libc::PF_ROUTE,
     /// Low level packet interface (see [`packet(7)`](https://man7.org/linux/man-pages/man7/packet.7.html))
     #[cfg(any(
@@ -425,7 +430,11 @@ impl AddressFamily {
             libc::AF_NETLINK => Some(AddressFamily::Netlink),
             #[cfg(any(target_os = "macos", target_os = "macos"))]
             libc::AF_SYSTEM => Some(AddressFamily::System),
-            #[cfg(not(target_os = "redox"))]
+            #[cfg(not(any(
+                target_os = "redox",
+                target_os = "linux",
+                target_os = "android"
+            )))]
             libc::PF_ROUTE => Some(AddressFamily::Route),
             #[cfg(any(target_os = "android", target_os = "linux"))]
             libc::AF_PACKET => Some(AddressFamily::Packet),
@@ -1261,6 +1270,82 @@ impl SockaddrIn {
     /// endian.
     pub const fn port(&self) -> u16 {
         u16::from_be(self.0.sin_port)
+    }
+}
+
+/// A socket address type that represents a layer 2 link-level address.
+#[cfg(all(
+    feature = "net",
+    not(any(target_os = "redox", target_os = "linux", target_os = "android"))
+))]
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct SockaddrDl(libc::sockaddr_dl);
+
+#[cfg(all(
+    feature = "net",
+    not(any(target_os = "redox", target_os = "linux", target_os = "android"))
+))]
+impl SockaddrDl {
+    pub fn interface_index(&self) -> Option<NonZeroU32> {
+        NonZeroU32::new(self.0.sdl_index.try_into().ok()?)
+    }
+
+    pub fn interface_name(&self) -> Option<std::ffi::OsString> {
+        if self.0.sdl_nlen == 0 {
+            return None;
+        }
+        let interface_name = self.0.sdl_data[0..self.0.sdl_nlen as usize]
+            .iter()
+            .map(|chr| *chr as u8)
+            .collect::<Vec<u8>>();
+        Some(<std::ffi::OsString as std::os::unix::prelude::OsStringExt>::from_vec(interface_name))
+    }
+
+    // pub fn local_addr(&self) -> Option<>
+}
+
+#[cfg(all(
+    feature = "net",
+    not(any(target_os = "redox", target_os = "linux", target_os = "android"))
+))]
+impl private::SockaddrLikePriv for SockaddrDl {}
+
+#[cfg(all(
+    feature = "net",
+    not(any(target_os = "redox", target_os = "linux", target_os = "android"))
+))]
+impl SockaddrLike for SockaddrDl {
+    unsafe fn from_raw(
+        addr: *const libc::sockaddr,
+        len: Option<libc::socklen_t>,
+    ) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if addr.is_null() {
+            return None;
+        }
+
+        // SAFETY: it is assumed the addr pointer is valid and does point to a valid
+        // `libc::sockaddr`.
+        let sockaddr_header: libc::sockaddr = unsafe { *addr };
+
+        if sockaddr_header.sa_family as i32 != libc::AF_LINK {
+            return None;
+        }
+
+        if let Some(len) = len {
+            if sockaddr_header.sa_len as u32 != len {
+                return None;
+            }
+        }
+
+        // SAFETY: it is assumed that if `sa_family` is `AF_LINK` and the lengths match, then the
+        // `addr` pointer is assumed to be pointing to a valid `libc::sockaddr_dl` struct.
+        let dladdr = unsafe { *(addr as *const libc::sockaddr_dl) };
+
+        Some(Self(dladdr))
     }
 }
 
@@ -2697,7 +2782,7 @@ mod datalink {
             let nlen = self.nlen();
             let data = self.0.sdl_data;
 
-            if self.is_empty() {
+            if self.is_empty() || data.len() <= nlen + 5 {
                 None
             } else {
                 Some([
@@ -2710,10 +2795,28 @@ mod datalink {
                 ])
             }
         }
+
+        /// Interface name
+        #[cfg(target_os = "macos")]
+        pub fn interface_name(&self) -> Option<std::ffi::OsString> {
+            if self.0.sdl_nlen == 0 {
+                return None;
+            }
+            let interface_name = self.0.sdl_data[0..self.0.sdl_nlen as usize]
+                .iter()
+                .map(|chr| *chr as u8)
+                .collect::<Vec<u8>>();
+            Some(<std::ffi::OsString as std::os::unix::prelude::OsStringExt>::from_vec(interface_name))
+        }
     }
 
     impl fmt::Display for LinkAddr {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            #[cfg(target_os = "macos")]
+            if let Some(name) = self.interface_name() {
+                let _ = write!(f, "{}", name.to_string_lossy())?;
+            }
+
             if let Some(addr) = self.addr() {
                 write!(f, "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
                     addr[0],
